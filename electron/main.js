@@ -88,6 +88,7 @@ function startServer() {
 
   const env = getEnv();
   env.ELECTRON_RUN_AS_NODE = '1';
+  env.NODE_PATH = path.join(serverPath, 'node_modules');
 
   serverProcess = spawn(process.execPath, [serverScript], {
     cwd: serverPath,
