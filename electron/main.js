@@ -14,17 +14,29 @@ function getServerPath() {
     : path.join(__dirname, '..', '.next', 'standalone');
 }
 
+function loadConfig() {
+  try {
+    if (app.isPackaged) {
+      const fs = require('fs');
+      const configPath = path.join(process.resourcesPath, 'config.json');
+      const data = fs.readFileSync(configPath, 'utf8');
+      return JSON.parse(data);
+    }
+    require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
+    return {};
+  } catch {
+    return {};
+  }
+}
+
 function getEnv() {
-  const serverPath = getServerPath();
+  const config = loadConfig();
   return {
     ...process.env,
+    ...config,
     NODE_ENV: 'production',
     PORT: String(PORT),
     HOSTNAME: '127.0.0.1',
-    DATABASE_URL: 'postgresql://natan_app:NatanFactory2026!@db.xerounapbrhagzzjatmw.supabase.co:5432/postgres',
-    DIRECT_URL: 'postgresql://natan_app:NatanFactory2026!@db.xerounapbrhagzzjatmw.supabase.co:5432/postgres',
-    JWT_SECRET: 'factory-records-jwt-secret-change-in-production-2024',
-    GEMINI_API_KEY: 'AIzaSyBFGj9SG8KM_E2Tpdrty42nI7oh-mvZkQQ',
   };
 }
 

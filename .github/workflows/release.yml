@@ -33,6 +33,14 @@ jobs:
       - name: Prepare standalone
         run: node electron/build-standalone.js
 
+      - name: Create config from secrets
+        run: node electron/create-config.js
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
       - name: Build Electron (portable)
         run: npx electron-builder --win --config electron-builder.publish.yml --publish always
         env:

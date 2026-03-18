@@ -47,6 +47,9 @@ yarn-error.log*
 # uploads (user data)
 /uploads
 
+# electron build config (contains secrets)
+config.production.json
+
 # vercel
 .vercel
 
