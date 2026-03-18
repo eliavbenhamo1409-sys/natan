@@ -1,33 +1,80 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-bg-primary: #f9fafb;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #f3f4f6;
+
+  --color-text-primary: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-tertiary: #9ca3af;
+
+  --color-border-subtle: #f3f4f6;
+  --color-border-base: #e5e7eb;
+  --color-border-strong: #d1d5db;
+
+  --color-accent-base: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-soft: #eff6ff;
+
+  --color-success-base: #10b981;
+  --color-success-soft: #d1fae5;
+  --color-warning-base: #f59e0b;
+  --color-warning-soft: #fef3c7;
+  --color-error-base: #ef4444;
+  --color-error-soft: #fee2e2;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-modal: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* Animations */
+  --animate-fade-in: fade-in 0.15s ease-out forwards;
+  --animate-slide-up: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+
+  /* Font */
+  --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ───── Layout variables (non-theme) ───── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --sidebar-width: 240px;
+  --header-height: 64px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
+/* ───── Base resets ───── */
 * {
   box-sizing: border-box;
-  padding: 0;
   margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-inter);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 a {
@@ -35,8 +82,194 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+button {
+  cursor: pointer;
+  font-family: inherit;
+  border: none;
+  background: none;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+/* ───── Layout Shell ───── */
+.app-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-sidebar {
+  width: var(--sidebar-width);
+  background: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border-base);
+  display: flex;
+  flex-direction: column;
+}
+
+.app-sidebar-logo {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  border-bottom: 1px solid var(--color-border-base);
+}
+
+.app-sidebar-nav {
+  padding: 16px 12px;
+  flex: 1;
+}
+
+.app-sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.1s ease;
+}
+
+.app-sidebar-nav-item:hover {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.app-sidebar-nav-item.active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-base);
+}
+
+.app-sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid var(--color-border-base);
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-header {
+  height: var(--header-height);
+  background: var(--color-bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 48px;
+}
+
+/* ───── Component Styles ───── */
+
+/* Button */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.1s ease;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-text-primary);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+.btn-primary:hover:not(:disabled) {
+  background: #000;
+}
+
+.btn-secondary {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-strong);
+  box-shadow: var(--shadow-sm);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-bg-tertiary);
+}
+
+.btn-accent {
+  background: var(--color-accent-base);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+.btn-accent:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.btn-ghost {
+  color: var(--color-text-secondary);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+/* Card */
+.card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-base);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+/* Input */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.input-field {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  transition: border-color 0.1s ease, box-shadow 0.1s ease;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--color-accent-base);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.input-field::placeholder {
+  color: var(--color-text-tertiary);
 }

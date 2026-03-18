@@ -32,6 +32,20 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env.local
+
+# electron build output
+/dist-electron
+
+# local db
+*.db
+/prisma/*.db
+
+# logs
+*.log
+
+# uploads (user data)
+/uploads
 
 # vercel
 .vercel
@@ -39,3 +53,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma

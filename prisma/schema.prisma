@@ -1,0 +1,66 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username  String    @unique
+  password  String
+  role      String    @default("employee")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  projects  Project[]
+
+  @@map("users")
+}
+
+model Project {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sourcePdfFilename    String?           @map("source_pdf_filename")
+  drawingDate          String?           @map("drawing_date")
+  plannerName          String?           @map("planner_name")
+  customerName         String?           @map("customer_name")
+  workOrderNumber      String?           @map("work_order_number")
+  sku                  String?
+  productDescription   String?           @map("product_description")
+  voltage              String?
+  powerKw              Float?            @map("power_kw")
+  quantity             Int?
+  configuration        String?
+  sheetNumber          Int?              @map("sheet_number")
+  totalSheets          Int?              @map("total_sheets")
+  scale                String?
+  thermostat           Boolean           @default(false)
+  mainSwitch           Boolean           @default(false) @map("main_switch")
+  technicalDimensions  String?           @map("technical_dimensions")
+  productImageUrl      String?           @map("product_image_url")
+  extractionStatus     String            @default("pending") @map("extraction_status")
+  extractionConfidence Float?            @map("extraction_confidence")
+  rawExtractedText     String?           @map("raw_extracted_text")
+  rawExtractedJson     String?           @map("raw_extracted_json")
+  uploadedBy           String?           @map("uploaded_by") @db.Uuid
+  embedding            ProjectEmbedding?
+  user                 User?             @relation(fields: [uploadedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([customerName], map: "idx_projects_customer_name")
+  @@index([extractionStatus], map: "idx_projects_extraction_status")
+  @@index([sku], map: "idx_projects_sku")
+  @@index([uploadedBy], map: "idx_projects_uploaded_by")
+  @@map("projects")
+}
+
+model ProjectEmbedding {
+  projectId String  @id @map("project_id") @db.Uuid
+  embedding String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("project_embeddings")
+}

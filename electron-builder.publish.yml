@@ -1,0 +1,9 @@
+# Used by GitHub Actions for release builds (portable + auto-update)
+extends: electron-builder.yml
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+  publish:
+    provider: github
