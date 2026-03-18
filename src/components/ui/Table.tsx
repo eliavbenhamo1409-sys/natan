@@ -12,9 +12,10 @@ interface TableProps<T> {
     columns: Column<T>[];
     onRowClick?: (item: T) => void;
     isLoading?: boolean;
+    getRowClassName?: (item: T) => string;
 }
 
-export function Table<T>({ data, columns, onRowClick, isLoading }: TableProps<T>) {
+export function Table<T>({ data, columns, onRowClick, isLoading, getRowClassName }: TableProps<T>) {
     return (
         <div className="w-full h-full bg-bg-secondary border border-border-base rounded-lg shadow-sm overflow-hidden flex flex-col">
             <div className="overflow-auto flex-1">
@@ -52,9 +53,9 @@ export function Table<T>({ data, columns, onRowClick, isLoading }: TableProps<T>
                         ) : (
                             data.map((row, i) => (
                                 <tr
-                                    key={i}
+                                    key={(row as any).id ?? i}
                                     onClick={() => onRowClick?.(row)}
-                                    className={`group transition-colors ${onRowClick ? 'cursor-pointer hover:bg-accent-soft/30' : ''}`}
+                                    className={`group transition-colors ${onRowClick ? 'cursor-pointer hover:bg-accent-soft/30' : ''} ${getRowClassName?.(row) || ''}`}
                                 >
                                     {columns.map((col) => (
                                         <td key={String(col.key)} className="px-4 py-4 text-[13px] text-text-primary align-middle">

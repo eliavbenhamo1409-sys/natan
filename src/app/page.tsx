@@ -26,8 +26,8 @@ export default function DashboardPage() {
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  const loadAllProjects = async () => {
-    setIsLoading(true);
+  const loadAllProjects = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setError(null);
     try {
       const res = await fetch('/api/projects');
@@ -35,9 +35,9 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error(json.error || 'Failed to load');
       setAllData(json.projects || []);
     } catch (e: any) {
-      setError(e.message);
+      if (!silent) setError(e.message);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
@@ -47,7 +47,7 @@ export default function DashboardPage() {
     if (aiResults !== null) return;
     const hasProcessing = allData.some(p => p.extractionStatus === 'processing' || p.extractionStatus === 'pending');
     if (!hasProcessing) return;
-    const interval = setInterval(loadAllProjects, 5000);
+    const interval = setInterval(() => loadAllProjects(true), 2000);
     return () => clearInterval(interval);
   }, [allData, aiResults]);
 
@@ -151,9 +151,16 @@ export default function DashboardPage() {
       formData.append('file', file);
       const res = await fetch('/api/projects', { method: 'POST', body: formData });
       if (!res.ok) throw new Error('Upload failed');
+      const json = await res.json();
       setIsUploadModalOpen(false);
       handleClearAi();
       await loadAllProjects();
+      if (json.project?.id) {
+        setAllData(prev => {
+          const exists = prev.some(p => p.id === json.project.id);
+          return exists ? prev : [json.project, ...prev];
+        });
+      }
     } catch (e) {
       console.error(e);
       alert('Failed to upload file.');
@@ -167,7 +174,9 @@ export default function DashboardPage() {
       key: 'productImageUrl',
       title: 'Image',
       width: '72px',
-      render: (row: any) => (
+      render: (row: any) => {
+        const isProcessing = row.extractionStatus === 'pending' || row.extractionStatus === 'processing';
+        return (
         <div className="relative w-14 h-14 rounded-lg overflow-visible bg-bg-tertiary border border-border-base flex items-center justify-center flex-shrink-0 group/img">
           {row.productImageUrl ? (
             <>
@@ -177,15 +186,41 @@ export default function DashboardPage() {
               </div>
             </>
           ) : (
-            <svg className="w-5 h-5 text-text-tertiary opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+            <span className="flex items-center justify-center w-full h-full">
+              {isProcessing ? (
+                <svg className="image-circle-fill" viewBox="0 0 40 40" aria-hidden>
+                  <circle cx="20" cy="20" r="17" fill="none" stroke="var(--color-border-base)" strokeWidth="3" />
+                  <circle cx="20" cy="20" r="17" fill="none" stroke="var(--color-accent-base)" strokeWidth="3" strokeLinecap="round" strokeDasharray="107" strokeDashoffset="107" className="image-circle-fill-stroke" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 text-text-tertiary opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+              )}
+            </span>
           )}
         </div>
-      ),
+      );
+      },
     },
     { key: 'sku', title: 'SKU / Part No', width: '12%' },
     { key: 'customerName', title: 'Customer', width: '15%' },
     { key: 'workOrderNumber', title: 'Work Order', width: '11%' },
-    { key: 'productDescription', title: 'Description', width: '22%' },
+    {
+      key: 'productDescription',
+      title: 'Description',
+      width: '22%',
+      render: (row: any) => {
+        const isProcessing = row.extractionStatus === 'pending' || row.extractionStatus === 'processing';
+        if (isProcessing) {
+          return (
+            <span className="inline-flex items-center gap-2 text-text-secondary">
+              <span className="processing-dots">בעיבוד</span>
+              <span className="processing-bar" aria-hidden />
+            </span>
+          );
+        }
+        return row.productDescription || '-';
+      },
+    },
     { key: 'plannerName', title: 'Planner', width: '10%' },
     {
       key: 'drawingDate',
@@ -287,6 +322,11 @@ export default function DashboardPage() {
             columns={columns}
             isLoading={isLoading}
             onRowClick={(row) => router.push(`/records/${row.id}`)}
+            getRowClassName={(row) =>
+              row.extractionStatus === 'pending' || row.extractionStatus === 'processing'
+                ? 'row-processing'
+                : ''
+            }
           />
         </div>
       </div>

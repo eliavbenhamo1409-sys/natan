@@ -273,3 +273,65 @@ input, textarea, select {
 .input-field::placeholder {
   color: var(--color-text-tertiary);
 }
+
+/* ───── Processing indicator ───── */
+.processing-dots {
+  font-size: 13px;
+  font-weight: 500;
+}
+.processing-dots::after {
+  content: '...';
+  animation: processing-blink 0.8s ease-in-out infinite;
+}
+@keyframes processing-blink {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.processing-bar {
+  display: inline-block;
+  width: 56px;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-accent-base) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-position: 100% 0;
+  border-radius: 1px;
+  animation: processing-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes processing-shimmer {
+  0% { background-position: 150% 0; }
+  100% { background-position: -50% 0; }
+}
+
+/* Processing row – subtle accent bar */
+tr.row-processing {
+  position: relative;
+  box-shadow: inset 3px 0 0 var(--color-accent-base);
+  animation: row-accent-pulse 2.2s ease-in-out infinite;
+}
+@keyframes row-accent-pulse {
+  0%, 100% { box-shadow: inset 3px 0 0 rgba(37, 99, 235, 0.35); }
+  50% { box-shadow: inset 3px 0 0 var(--color-accent-base); }
+}
+
+/* Image cell – circular fill (independent animation) */
+.image-circle-fill {
+  display: block;
+  width: 36px;
+  height: 36px;
+}
+.image-circle-fill-stroke {
+  animation: circle-fill-draw 2.2s ease-in-out infinite;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+@keyframes circle-fill-draw {
+  0% { stroke-dashoffset: 107; }
+  50% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 107; }
+}
