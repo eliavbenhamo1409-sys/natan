@@ -1,13 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
   turbopack: {},
   webpack: (config) => {
     config.resolve.alias.canvas = false;
     return config;
   },
-  serverExternalPackages: ['pdf-parse'],
+  serverExternalPackages: ['pdf-parse', 'sharp'],
   experimental: {
     proxyClientMaxBodySize: '200mb',
   },
