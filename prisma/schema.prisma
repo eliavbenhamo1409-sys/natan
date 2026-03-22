@@ -29,6 +29,7 @@ model Project {
   plannerName          String?           @map("planner_name")
   customerName         String?           @map("customer_name")
   workOrderNumber      String?           @map("work_order_number")
+  rowNumber            String?           @map("row_number")
   sku                  String?
   productDescription   String?           @map("product_description")
   voltage              String?
@@ -63,4 +64,20 @@ model ProjectEmbedding {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("project_embeddings")
+}
+
+model InventoryItem {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partNumber  String?  @map("part_number")
+  name        String
+  description String?
+  quantity    Int      @default(0)
+  category    String?
+  location    String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([partNumber], map: "idx_inventory_part_number")
+  @@index([name], map: "idx_inventory_name")
+  @@map("inventory_items")
 }

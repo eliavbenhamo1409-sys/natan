@@ -24,9 +24,14 @@ export default function ImportPage() {
         setResult(null);
 
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            const res = await fetch('/api/projects/import', { method: 'POST', body: formData });
+            const res = await fetch('/api/projects/import', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/octet-stream',
+                    'X-Filename': encodeURIComponent(file.name),
+                },
+                body: file,
+            });
             const json = await res.json();
             if (!res.ok) throw new Error(json.error || 'Import failed');
             setResult(json);

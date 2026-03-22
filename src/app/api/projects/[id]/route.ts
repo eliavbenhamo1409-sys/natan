@@ -71,7 +71,50 @@ export async function PATCH(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const contentType = request.headers.get('content-type') || '';
+
+        // Handle image upload via FormData
+        if (contentType.includes('multipart/form-data')) {
+            const formData = await request.formData();
+            const imageFile = formData.get('image') as File | null;
+
+            if (imageFile) {
+                const imageDir = path.join(process.cwd(), 'uploads', 'images');
+                await fs.mkdir(imageDir, { recursive: true });
+                const imgPath = path.join(imageDir, `${id}.png`);
+                const sharp = (await import('sharp')).default;
+                const buf = Buffer.from(await imageFile.arrayBuffer());
+                await sharp(buf).png().toFile(imgPath);
+                const cacheBuster = Date.now();
+                await prisma.project.update({
+                    where: { id },
+                    data: { productImageUrl: `/api/files/images/${id}?v=${cacheBuster}` },
+                });
+            }
+
+            // Also update any text fields sent along
+            const fields: Record<string, any> = {};
+            for (const [key, value] of formData.entries()) {
+                if (key === 'image') continue;
+                fields[key] = value === '' ? null : String(value);
+            }
+            if (fields.powerKw) fields.powerKw = parseFloat(fields.powerKw) || null;
+            if (fields.quantity) fields.quantity = parseInt(fields.quantity, 10) || null;
+
+            let project;
+            if (Object.keys(fields).length > 0) {
+                project = await prisma.project.update({ where: { id }, data: fields });
+            } else {
+                project = await prisma.project.findUnique({ where: { id } });
+            }
+
+            return NextResponse.json({ project });
+        }
+
+        // Handle JSON updates
         const updates = await request.json();
+        if (updates.powerKw !== undefined) updates.powerKw = updates.powerKw ? parseFloat(updates.powerKw) : null;
+        if (updates.quantity !== undefined) updates.quantity = updates.quantity ? parseInt(updates.quantity, 10) : null;
 
         const project = await prisma.project.update({
             where: { id },

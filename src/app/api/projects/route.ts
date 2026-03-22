@@ -18,6 +18,11 @@ export async function POST(request: Request) {
         if (contentType.includes('application/json')) {
             const body = await request.json();
             const projectId = uuidv4();
+
+            const maxRow = await prisma.project.aggregate({ _max: { rowNumber: true } });
+            const maxNum = parseInt(maxRow._max.rowNumber || '0', 10) || 0;
+            const nextRowNumber = String(maxNum + 1);
+
             const project = await prisma.project.create({
                 data: {
                     id: projectId,
@@ -29,6 +34,7 @@ export async function POST(request: Request) {
                     drawingDate: body.drawingDate || null,
                     voltage: body.voltage || null,
                     quantity: body.quantity ? parseInt(body.quantity, 10) : null,
+                    rowNumber: nextRowNumber,
                     uploadedBy: user.userId,
                     extractionStatus: 'completed',
                 },
@@ -73,6 +79,33 @@ export async function POST(request: Request) {
     }
 }
 
+export async function DELETE(request: Request) {
+    try {
+        const user = verifyRequestAuth(request);
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const result = await prisma.$transaction(async (tx) => {
+            await tx.projectEmbedding.deleteMany({});
+            return tx.project.deleteMany({});
+        });
+
+        // Clean up uploaded files
+        const { rm } = await import('fs/promises');
+        const imgDir = path.join(process.cwd(), 'uploads', 'images');
+        const pdfDir = path.join(process.cwd(), 'uploads', 'pdfs');
+        await rm(imgDir, { recursive: true, force: true }).catch(() => {});
+        await rm(pdfDir, { recursive: true, force: true }).catch(() => {});
+
+        console.log(`[delete-all] Deleted ${result.count} projects`);
+        return NextResponse.json({ deleted: result.count });
+    } catch (error) {
+        console.error('Delete all errored:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+
 export async function GET(request: Request) {
     try {
         const user = verifyRequestAuth(request);
@@ -97,7 +130,13 @@ export async function GET(request: Request) {
         const projects = await prisma.project.findMany({
             where: whereClause,
             orderBy: { createdAt: 'desc' },
-            take: 50, // limit for list
+            take: 1000,
+        });
+
+        projects.sort((a, b) => {
+            const numA = parseInt(a.rowNumber || '0', 10) || 0;
+            const numB = parseInt(b.rowNumber || '0', 10) || 0;
+            return numB - numA;
         });
 
         return NextResponse.json({ projects });

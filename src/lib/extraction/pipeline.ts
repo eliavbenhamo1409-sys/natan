@@ -1,27 +1,47 @@
 import path from 'path';
 import fs from 'fs/promises';
 import sharp from 'sharp';
-import { extractProjectFieldsFromPdf, generateEmbedding, getProductBoundingBox, generateCatalogDescription } from './gemini';
-import { extractLargestImageFromPdf } from './image-extractor';
+import { extractProjectFieldsFromPdf, generateEmbedding, selectBestProductImage, getProductBoundingBox, generateCatalogDescription } from './gemini';
+import { extractAllImagesFromPdf } from './image-extractor';
 import { prisma } from '@/lib/db';
 
 async function extractAndCropProductImage(pdfBuffer: Buffer, projectId: string): Promise<string | null> {
-    const extracted = await extractLargestImageFromPdf(pdfBuffer);
-    if (!extracted) {
-        console.log('[pipeline] No embedded images found in PDF');
-        return null;
-    }
-
-    console.log(`[pipeline] Extracted image: ${extracted.buffer.length} bytes`);
-
-    const bbox = await getProductBoundingBox(extracted.buffer, extracted.mimeType);
-
     const imageDir = path.join(process.cwd(), 'uploads', 'images');
     await fs.mkdir(imageDir, { recursive: true });
     const outputPath = path.join(imageDir, `${projectId}.png`);
 
+    const allImages = await extractAllImagesFromPdf(pdfBuffer, 5);
+    console.log(`[pipeline] Extracted ${allImages.length} images from PDF`);
+
+    if (allImages.length === 0) {
+        console.log('[pipeline] No images found in PDF');
+        return null;
+    }
+
+    let chosenBuffer: Buffer;
+    let bbox: { ymin: number; xmin: number; ymax: number; xmax: number } | null = null;
+
+    if (allImages.length === 1) {
+        console.log('[pipeline] Single image — sending for bbox detection');
+        chosenBuffer = allImages[0].buffer;
+        bbox = await getProductBoundingBox(chosenBuffer, allImages[0].mimeType);
+    } else {
+        console.log(`[pipeline] ${allImages.length} images — asking AI to select best 3D render`);
+        const selection = await selectBestProductImage(allImages);
+
+        if (selection) {
+            chosenBuffer = allImages[selection.index].buffer;
+            bbox = selection.bbox;
+            console.log(`[pipeline] AI selected image ${selection.index + 1}/${allImages.length}`);
+        } else {
+            console.log('[pipeline] AI selection failed, falling back to largest image');
+            chosenBuffer = allImages[0].buffer;
+            bbox = await getProductBoundingBox(chosenBuffer, allImages[0].mimeType);
+        }
+    }
+
     if (bbox) {
-        const metadata = await sharp(extracted.buffer).metadata();
+        const metadata = await sharp(chosenBuffer).metadata();
         const imgW = metadata.width || 1;
         const imgH = metadata.height || 1;
 
@@ -34,13 +54,13 @@ async function extractAndCropProductImage(pdfBuffer: Buffer, projectId: string):
 
         console.log(`[pipeline] Cropping product: [${left},${top} ${width}x${height}] from ${imgW}x${imgH}`);
 
-        await sharp(extracted.buffer)
+        await sharp(chosenBuffer)
             .extract({ left, top, width, height })
             .png()
             .toFile(outputPath);
     } else {
-        console.log('[pipeline] No bounding box detected, saving full image');
-        await fs.writeFile(outputPath, extracted.buffer);
+        console.log('[pipeline] No bbox, saving selected image as-is');
+        await sharp(chosenBuffer).png().toFile(outputPath);
     }
 
     return `/api/files/images/${projectId}`;

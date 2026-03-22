@@ -6,16 +6,11 @@
     "type": "git",
     "url": "https://github.com/eliavbenhamo1409-sys/natan.git"
   },
-  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint",
-    "electron:build": "node electron/build.js",
-    "electron:pack": "npx electron-builder --win --config electron-builder.yml",
-    "electron:dist": "npm run electron:build && npm run electron:pack",
-    "release": "node electron/release.js"
+    "lint": "eslint"
   },
   "dependencies": {
     "@google/genai": "^1.46.0",
@@ -23,9 +18,9 @@
     "@napi-rs/canvas": "^0.1.97",
     "@prisma/client": "^6.19.2",
     "@tailwindcss/postcss": "^4.2.1",
+    "adm-zip": "^0.5.16",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.3.1",
-    "electron-updater": "^6.8.3",
     "jsonwebtoken": "^9.0.3",
     "next": "16.1.7",
     "pdf-lib": "^1.17.1",
@@ -43,6 +38,7 @@
     "seed": "ts-node --compiler-options {\"module\":\"commonjs\"} prisma/seed.ts"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
@@ -50,15 +46,10 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
-    "electron": "^41.0.3",
-    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.7",
     "fs-extra": "^11.3.4",
     "ts-node": "^10.9.2",
     "typescript": "^5"
-  },
-  "optionalDependencies": {
-    "@img/sharp-win32-x64": "^0.34.5"
   }
 }

@@ -3,7 +3,7 @@ import React from 'react';
 interface Column<T> {
     key: keyof T | string;
     title: string;
-    render?: (item: T) => React.ReactNode;
+    render?: (item: T, index: number) => React.ReactNode;
     width?: string;
 }
 
@@ -59,7 +59,7 @@ export function Table<T>({ data, columns, onRowClick, isLoading, getRowClassName
                                 >
                                     {columns.map((col) => (
                                         <td key={String(col.key)} className="px-4 py-4 text-[13px] text-text-primary align-middle">
-                                            {col.render ? col.render(row) : String((row as any)[col.key] || '')}
+                                            {col.render ? col.render(row, i) : String((row as any)[col.key] || '')}
                                         </td>
                                     ))}
                                 </tr>

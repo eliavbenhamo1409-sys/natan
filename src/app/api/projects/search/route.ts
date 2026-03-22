@@ -2,19 +2,79 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyRequestAuth } from '@/lib/auth';
 import { generateEmbedding, generateSearchSuggestions } from '@/lib/extraction/gemini';
+import { GoogleGenAI } from '@google/genai';
+
+function getAI(): GoogleGenAI {
+    if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY missing');
+    return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+}
 
 function cosineSimilarity(A: number[], B: number[]) {
     if (A.length !== B.length || A.length === 0) return 0;
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
+    let dot = 0, nA = 0, nB = 0;
     for (let i = 0; i < A.length; i++) {
-        dotProduct += A[i] * B[i];
-        normA += A[i] * A[i];
-        normB += B[i] * B[i];
+        dot += A[i] * B[i];
+        nA += A[i] * A[i];
+        nB += B[i] * B[i];
     }
-    if (normA === 0 || normB === 0) return 0;
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    return (nA === 0 || nB === 0) ? 0 : dot / (Math.sqrt(nA) * Math.sqrt(nB));
+}
+
+const EXPAND_SCHEMA = {
+    type: 'object' as const,
+    properties: {
+        terms: {
+            type: 'array' as const,
+            items: { type: 'string' as const },
+            description: 'All expanded search terms including the original query.',
+        },
+    },
+    required: ['terms'],
+};
+
+const EXPAND_PROMPT = `You are a Hebrew/English industrial search query expander for a factory product management system.
+
+Given a user's search query, generate ALL relevant search terms that should match products in a factory database.
+
+EXPAND the query into:
+1. The original term as-is
+2. Hebrew spelling variations (with and without nikud, common misspellings, e.g., קופסה/קופסא, תאור/תיאור)
+3. All Hebrew verb conjugations and forms (e.g., חימום → לחמם, חמם, מחמם, חם, להתחמם)
+4. Root-based Hebrew matches (שורש: e.g., ח.מ.מ for חימום)
+5. Singular/plural forms (e.g., מסגרת/מסגרות, ברג/ברגים)
+6. English translations (e.g., חימום → heating, heater, heat)
+7. Semantically related industrial terms (e.g., חימום → גוף חימום, ארון חימום, אלמנט חימום, רכיב חימום, תנור)
+8. Common abbreviations and shorthand used in Israeli factories
+9. Related product categories (e.g., מסגרת → שלדה, פריים, frame, chassis)
+
+RULES:
+- Return 10-30 terms maximum
+- Include both short keywords and 2-word combinations
+- Focus on terms likely to appear in industrial product descriptions, SKUs, and work orders
+- Every term should be a realistic search match, don't add irrelevant terms
+- Include the original query as the first term`;
+
+async function expandQuery(query: string): Promise<string[]> {
+    try {
+        const ai = getAI();
+        const result = await ai.models.generateContent({
+            model: 'gemini-2.0-flash',
+            contents: [{ parts: [{ text: `${EXPAND_PROMPT}\n\nUser query: "${query}"` }] }],
+            config: {
+                responseMimeType: 'application/json',
+                responseJsonSchema: EXPAND_SCHEMA,
+            },
+        });
+        const text = result.text;
+        if (!text) return [query];
+        const parsed = JSON.parse(text);
+        const terms: string[] = parsed.terms || [query];
+        if (!terms.includes(query)) terms.unshift(query);
+        return terms;
+    } catch (e) {
+        console.error('Query expansion failed:', e);
+        return [query];
+    }
 }
 
 export async function GET(request: Request) {
@@ -26,91 +86,96 @@ export async function GET(request: Request) {
 
         const { searchParams } = new URL(request.url);
         const query = searchParams.get('q');
-
         if (!query) {
             return NextResponse.json({ projects: [], suggestions: [] });
         }
 
-        let queryEmbedding: number[];
-        try {
-            queryEmbedding = await generateEmbedding(query);
-        } catch (e) {
-            console.error('Embedding generation failed:', e);
-            return NextResponse.json({ error: 'AI search temporarily unavailable' }, { status: 503 });
-        }
+        console.log(`[search] Query: "${query}"`);
 
-        if (!queryEmbedding || queryEmbedding.length === 0) {
-            return NextResponse.json({ error: 'Failed to generate search embedding' }, { status: 503 });
-        }
+        const [expandedTerms, queryEmbedding] = await Promise.all([
+            expandQuery(query),
+            generateEmbedding(query).catch(() => [] as number[]),
+        ]);
 
-        const allEmbeddings = await prisma.projectEmbedding.findMany({
-            include: { project: true }
+        console.log(`[search] Expanded to ${expandedTerms.length} terms:`, expandedTerms.slice(0, 10));
+
+        // Text search across all expanded terms
+        const textConditions = expandedTerms.flatMap(term => [
+            { sku: { contains: term, mode: 'insensitive' as const } },
+            { customerName: { contains: term, mode: 'insensitive' as const } },
+            { productDescription: { contains: term, mode: 'insensitive' as const } },
+            { workOrderNumber: { contains: term, mode: 'insensitive' as const } },
+            { configuration: { contains: term, mode: 'insensitive' as const } },
+            { plannerName: { contains: term, mode: 'insensitive' as const } },
+        ]);
+
+        const textResults = await prisma.project.findMany({
+            where: { OR: textConditions },
+            take: 50,
         });
 
-        if (allEmbeddings.length === 0) {
-            const textResults = await prisma.project.findMany({
-                where: {
-                    OR: [
-                        { sku: { contains: query } },
-                        { customerName: { contains: query } },
-                        { productDescription: { contains: query } },
-                        { workOrderNumber: { contains: query } },
-                        { rawExtractedText: { contains: query } },
-                    ],
-                },
-                orderBy: { createdAt: 'desc' },
-                take: 20,
+        console.log(`[search] Text search found ${textResults.length} results`);
+
+        // Embedding search (if embeddings exist)
+        let embeddingResults: typeof textResults = [];
+        if (queryEmbedding.length > 0) {
+            const allEmbeddings = await prisma.projectEmbedding.findMany({
+                include: { project: true },
             });
 
-            if (textResults.length === 0) {
-                const suggestions = await generateSearchSuggestions(query);
-                return NextResponse.json({ projects: [], suggestions });
-            }
+            if (allEmbeddings.length > 0) {
+                const scored = allEmbeddings
+                    .map(emb => {
+                        try {
+                            const vec = JSON.parse(emb.embedding);
+                            return { project: emb.project, score: cosineSimilarity(queryEmbedding, vec) };
+                        } catch { return null; }
+                    })
+                    .filter((p): p is NonNullable<typeof p> => p !== null)
+                    .sort((a, b) => b.score - a.score);
 
-            return NextResponse.json({ projects: textResults, suggestions: [] });
-        }
-
-        const scoredProjects = allEmbeddings
-            .map(emb => {
-                let storedVec: number[] = [];
-                try {
-                    storedVec = JSON.parse(emb.embedding);
-                } catch {
-                    return null;
+                const topScore = scored[0]?.score || 0;
+                if (topScore >= 0.50) {
+                    const threshold = Math.max(0.50, topScore * 0.90);
+                    embeddingResults = scored
+                        .filter(p => p.score >= threshold)
+                        .slice(0, 20)
+                        .map(p => p.project);
                 }
-                const score = cosineSimilarity(queryEmbedding, storedVec);
-                return { project: emb.project, score };
-            })
-            .filter((p): p is NonNullable<typeof p> => p !== null)
-            .sort((a, b) => b.score - a.score);
 
-        if (scoredProjects.length === 0) {
+                console.log(`[search] Embedding search found ${embeddingResults.length} results (top score: ${topScore.toFixed(3)})`);
+            }
+        }
+
+        // Merge and deduplicate
+        const seen = new Set<string>();
+        const merged: typeof textResults = [];
+
+        for (const p of [...embeddingResults, ...textResults]) {
+            if (!seen.has(p.id)) {
+                seen.add(p.id);
+                merged.push(p);
+            }
+        }
+
+        // Sort merged results by rowNumber descending
+        merged.sort((a, b) => {
+            const numA = parseInt(a.rowNumber || '0', 10) || 0;
+            const numB = parseInt(b.rowNumber || '0', 10) || 0;
+            return numB - numA;
+        });
+
+        console.log(`[search] Total merged results: ${merged.length}`);
+
+        if (merged.length === 0) {
             const suggestions = await generateSearchSuggestions(query);
             return NextResponse.json({ projects: [], suggestions });
         }
 
-        const topScore = scoredProjects[0].score;
-
-        if (topScore < 0.58) {
-            const suggestions = await generateSearchSuggestions(query);
-            return NextResponse.json({ projects: [], suggestions });
-        }
-
-        const dynamicThreshold = Math.max(0.58, topScore * 0.93);
-        const results = scoredProjects
-            .filter(p => p.score >= dynamicThreshold)
-            .slice(0, 10)
-            .map(p => p.project);
-
-        if (results.length === 0) {
-            const suggestions = await generateSearchSuggestions(query);
-            return NextResponse.json({ projects: [], suggestions });
-        }
-
-        return NextResponse.json({ projects: results, suggestions: [] });
+        return NextResponse.json({ projects: merged, suggestions: [] });
 
     } catch (error) {
-        console.error('Semantic search errored:', error);
+        console.error('Search errored:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

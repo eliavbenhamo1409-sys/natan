@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { LayoutShell } from '@/components/ui/LayoutShell';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Table } from '@/components/ui/Table';
@@ -25,6 +25,7 @@ export default function DashboardPage() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   const loadAllProjects = async (silent = false) => {
     if (!silent) setIsLoading(true);
@@ -41,7 +42,9 @@ export default function DashboardPage() {
     }
   };
 
-  useEffect(() => { loadAllProjects(); }, []);
+  useEffect(() => {
+    loadAllProjects();
+  }, []);
 
   useEffect(() => {
     if (aiResults !== null) return;
@@ -177,12 +180,12 @@ export default function DashboardPage() {
       render: (row: any) => {
         const isProcessing = row.extractionStatus === 'pending' || row.extractionStatus === 'processing';
         return (
-        <div className="relative w-14 h-14 rounded-lg overflow-visible bg-bg-tertiary border border-border-base flex items-center justify-center flex-shrink-0 group/img">
+        <div className="relative w-14 h-14 rounded-lg overflow-visible bg-white border border-border-base flex items-center justify-center flex-shrink-0 group/img">
           {row.productImageUrl ? (
             <>
               <img src={row.productImageUrl} alt="" className="w-full h-full object-contain rounded-lg" />
-              <div className="pointer-events-none absolute z-50 left-0 top-0 w-[336px] h-[336px] rounded-xl border border-border-strong bg-bg-secondary shadow-modal overflow-hidden opacity-0 group-hover/img:opacity-100 transition-opacity duration-150 -translate-y-1/4">
-                <img src={row.productImageUrl} alt="" className="w-full h-full object-contain p-2" />
+              <div className="pointer-events-none absolute z-50 left-0 top-0 w-[336px] h-[336px] rounded-xl border border-border-base bg-white shadow-modal overflow-hidden opacity-0 group-hover/img:opacity-100 transition-opacity duration-150 -translate-y-1/4">
+                <img src={row.productImageUrl} alt="" className="w-full h-full object-contain" />
               </div>
             </>
           ) : (
@@ -227,6 +230,14 @@ export default function DashboardPage() {
       title: 'Date',
       width: '10%',
       render: (row: any) => row.drawingDate || '-'
+    },
+    {
+      key: 'rowNumber',
+      title: '#',
+      width: '40px',
+      render: (row: any, index: number) => (
+        <span className="text-[12px] text-text-tertiary font-mono">{row.rowNumber || index + 1}</span>
+      ),
     },
     {
       key: '_actions',
