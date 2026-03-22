@@ -252,6 +252,9 @@ export async function POST(request: Request) {
         const imageDir = path.join(process.cwd(), 'uploads', 'images');
         await mkdir(imageDir, { recursive: true });
 
+        const maxRow = await prisma.project.aggregate({ _max: { rowNumber: true } });
+        let currentMax = parseInt(maxRow._max.rowNumber || '0', 10) || 0;
+
         let imported = 0;
         let skipped = 0;
         const importedIds: string[] = [];
@@ -286,13 +289,8 @@ export async function POST(request: Request) {
                 continue;
             }
 
-            if (rowNumColKey) {
-                const rn = cleanValue(row[rowNumColKey]);
-                if (rn) data.rowNumber = rn;
-            }
-            if (!data.rowNumber) {
-                data.rowNumber = String(i + 1);
-            }
+            currentMax++;
+            data.rowNumber = String(currentMax);
 
             const projectId = uuidv4();
 

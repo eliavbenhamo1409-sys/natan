@@ -95,7 +95,7 @@ export async function POST(request: Request) {
 
         const pdfBytes = await pdf.save();
 
-        return new Response(pdfBytes, {
+        return new Response(Buffer.from(pdfBytes), {
             headers: {
                 'Content-Type': 'application/pdf',
                 'Content-Disposition': `attachment; filename="warehouse-match-${Date.now()}.pdf"`,

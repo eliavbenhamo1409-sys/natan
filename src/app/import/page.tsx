@@ -3,9 +3,11 @@
 import { useState, useRef } from 'react';
 import { LayoutShell } from '@/components/ui/LayoutShell';
 import { useRouter } from 'next/navigation';
+import { useProjectsCache } from '@/lib/projects-cache';
 
 export default function ImportPage() {
     const router = useRouter();
+    const { invalidate } = useProjectsCache();
     const fileRef = useRef<HTMLInputElement>(null);
     const [file, setFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
@@ -35,6 +37,7 @@ export default function ImportPage() {
             const json = await res.json();
             if (!res.ok) throw new Error(json.error || 'Import failed');
             setResult(json);
+            invalidate();
         } catch (e: any) {
             setError(e.message);
         } finally {

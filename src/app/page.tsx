@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { LayoutShell } from '@/components/ui/LayoutShell';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Table } from '@/components/ui/Table';
@@ -9,56 +9,61 @@ import { Button } from '@/components/ui/Button';
 import { UploadZone } from '@/components/ui/UploadZone';
 import { Modal } from '@/components/ui/Modal';
 import { useRouter } from 'next/navigation';
+import { useProjectsCache } from '@/lib/projects-cache';
 
 export default function DashboardPage() {
   const router = useRouter();
-
-  const [allData, setAllData] = useState<any[]>([]);
-  const [aiResults, setAiResults] = useState<any[] | null>(null);
-  const [textFilter, setTextFilter] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAiSearching, setIsAiSearching] = useState(false);
-  const [activeAiQuery, setActiveAiQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const cache = useProjectsCache();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRestoredRef = useRef(false);
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
 
-  const loadAllProjects = async (silent = false) => {
-    if (!silent) setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/projects');
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to load');
-      setAllData(json.projects || []);
-    } catch (e: any) {
-      if (!silent) setError(e.message);
-    } finally {
-      if (!silent) setIsLoading(false);
-    }
-  };
-
+  // On mount: fetch if stale, restore scroll position
   useEffect(() => {
-    loadAllProjects();
+    if (cache.isFresh && cache.projects.length > 0) {
+      cache.patch({ isLoading: false });
+    } else {
+      cache.fetchProjects();
+    }
   }, []);
 
+  // Restore scroll position after data renders
   useEffect(() => {
-    if (aiResults !== null) return;
-    const hasProcessing = allData.some(p => p.extractionStatus === 'processing' || p.extractionStatus === 'pending');
+    if (!scrollRestoredRef.current && !cache.isLoading && cache.projects.length > 0 && cache.scrollTop > 0) {
+      scrollRestoredRef.current = true;
+      requestAnimationFrame(() => {
+        const el = scrollRef.current?.querySelector('.overflow-auto');
+        if (el) el.scrollTop = cache.scrollTop;
+      });
+    }
+  }, [cache.isLoading, cache.projects.length]);
+
+  // Save scroll position on unmount
+  useEffect(() => {
+    return () => {
+      const el = scrollRef.current?.querySelector('.overflow-auto');
+      if (el) cache.patch({ scrollTop: el.scrollTop });
+    };
+  }, []);
+
+  // Poll for processing items
+  useEffect(() => {
+    if (cache.aiResults !== null) return;
+    const hasProcessing = cache.projects.some(p => p.extractionStatus === 'processing' || p.extractionStatus === 'pending');
     if (!hasProcessing) return;
-    const interval = setInterval(() => loadAllProjects(true), 2000);
+    const interval = setInterval(() => cache.fetchProjects({ silent: true, force: true }), 2000);
     return () => clearInterval(interval);
-  }, [allData, aiResults]);
+  }, [cache.projects, cache.aiResults]);
 
   const filteredData = useMemo(() => {
-    if (aiResults !== null) return aiResults;
-    if (!textFilter.trim()) return allData;
-    const q = textFilter.toLowerCase();
-    return allData.filter(p =>
+    if (cache.aiResults !== null) return cache.aiResults;
+    if (!cache.textFilter.trim()) return cache.projects;
+    const q = cache.textFilter.toLowerCase();
+    return cache.projects.filter(p =>
       (p.sku || '').toLowerCase().includes(q) ||
       (p.customerName || '').toLowerCase().includes(q) ||
       (p.productDescription || '').toLowerCase().includes(q) ||
@@ -66,40 +71,33 @@ export default function DashboardPage() {
       (p.plannerName || '').toLowerCase().includes(q) ||
       (p.voltage || '').toLowerCase().includes(q)
     );
-  }, [allData, aiResults, textFilter]);
+  }, [cache.projects, cache.aiResults, cache.textFilter]);
 
-  const handleTextFilter = (query: string) => {
-    setTextFilter(query);
-    setAiResults(null);
-    setActiveAiQuery('');
-    setSuggestions([]);
-  };
+  const handleTextFilter = useCallback((query: string) => {
+    cache.patch({ textFilter: query, aiResults: null, activeAiQuery: '', suggestions: [] });
+  }, [cache]);
 
-  const handleAiSearch = async (query: string) => {
-    setIsAiSearching(true);
-    setSuggestions([]);
-    setError(null);
+  const handleAiSearch = useCallback(async (query: string) => {
+    cache.patch({ isAiSearching: true, suggestions: [] });
     try {
       const res = await fetch(`/api/projects/search?q=${encodeURIComponent(query)}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'AI search failed');
-      setAiResults(json.projects || []);
-      setSuggestions(json.suggestions || []);
-      setActiveAiQuery(query);
-      setTextFilter('');
+      cache.patch({
+        aiResults: json.projects || [],
+        suggestions: json.suggestions || [],
+        activeAiQuery: query,
+        textFilter: '',
+        isAiSearching: false,
+      });
     } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setIsAiSearching(false);
+      cache.patch({ error: e.message, isAiSearching: false });
     }
-  };
+  }, [cache]);
 
-  const handleClearAi = () => {
-    setAiResults(null);
-    setActiveAiQuery('');
-    setSuggestions([]);
-    setTextFilter('');
-  };
+  const handleClearAi = useCallback(() => {
+    cache.patch({ aiResults: null, activeAiQuery: '', suggestions: [], textFilter: '' });
+  }, [cache]);
 
   const handleSuggestionClick = (suggestion: string) => {
     handleAiSearch(suggestion);
@@ -114,8 +112,7 @@ export default function DashboardPage() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || 'Delete failed');
       }
-      setAllData(prev => prev.filter(p => p.id !== projectId));
-      if (aiResults) setAiResults(prev => prev!.filter(p => p.id !== projectId));
+      cache.removeProject(projectId);
     } catch (err: any) {
       alert(err.message || 'Failed to delete');
     }
@@ -139,7 +136,8 @@ export default function DashboardPage() {
       setManualForm({ sku: '', customerName: '', workOrderNumber: '', productDescription: '', plannerName: '', drawingDate: '', voltage: '', quantity: '' });
       setIsManualModalOpen(false);
       handleClearAi();
-      await loadAllProjects();
+      cache.invalidate();
+      await cache.fetchProjects({ force: true });
     } catch (e: any) {
       alert(e.message);
     } finally {
@@ -154,16 +152,10 @@ export default function DashboardPage() {
       formData.append('file', file);
       const res = await fetch('/api/projects', { method: 'POST', body: formData });
       if (!res.ok) throw new Error('Upload failed');
-      const json = await res.json();
       setIsUploadModalOpen(false);
       handleClearAi();
-      await loadAllProjects();
-      if (json.project?.id) {
-        setAllData(prev => {
-          const exists = prev.some(p => p.id === json.project.id);
-          return exists ? prev : [json.project, ...prev];
-        });
-      }
+      cache.invalidate();
+      await cache.fetchProjects({ force: true });
     } catch (e) {
       console.error(e);
       alert('Failed to upload file.');
@@ -268,9 +260,9 @@ export default function DashboardPage() {
               onTextFilter={handleTextFilter}
               onAiSearch={handleAiSearch}
               onReset={handleClearAi}
-              isSearching={isAiSearching}
-              isFiltered={!!textFilter || !!activeAiQuery}
-              externalQuery={activeAiQuery}
+              isSearching={cache.isAiSearching}
+              isFiltered={!!cache.textFilter || !!cache.activeAiQuery}
+              externalQuery={cache.activeAiQuery}
             />
           </div>
 
@@ -294,16 +286,16 @@ export default function DashboardPage() {
 
         <div className="flex items-center" dir="rtl">
           <div className="flex items-center gap-2 text-sm text-text-primary font-medium">
-            {activeAiQuery ? 'פרויקטים דומים' : textFilter ? 'תוצאות סינון' : 'כל הפרויקטים'}
+            {cache.activeAiQuery ? 'פרויקטים דומים' : cache.textFilter ? 'תוצאות סינון' : 'כל הפרויקטים'}
             <Badge variant="neutral" className="mr-1 bg-border-base">{filteredData.length}</Badge>
           </div>
         </div>
 
-        {suggestions.length > 0 && aiResults !== null && aiResults.length === 0 && (
+        {cache.suggestions.length > 0 && cache.aiResults !== null && cache.aiResults.length === 0 && (
           <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', padding: '24px 0' }}>
             <p style={{ fontSize: '13px', color: '#9ca3af' }}>לא נמצא פרויקט דומה. נסה לחפש לפי:</p>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
-              {suggestions.map((s, i) => (
+              {cache.suggestions.map((s, i) => (
                 <button
                   key={i}
                   onClick={() => handleSuggestionClick(s)}
@@ -327,11 +319,11 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="flex-1 min-h-0">
+        <div ref={scrollRef} className="flex-1 min-h-0">
           <Table
             data={filteredData}
             columns={columns}
-            isLoading={isLoading}
+            isLoading={cache.isLoading}
             onRowClick={(row) => router.push(`/records/${row.id}`)}
             getRowClassName={(row) =>
               row.extractionStatus === 'pending' || row.extractionStatus === 'processing'

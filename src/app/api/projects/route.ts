@@ -136,7 +136,8 @@ export async function GET(request: Request) {
         projects.sort((a, b) => {
             const numA = parseInt(a.rowNumber || '0', 10) || 0;
             const numB = parseInt(b.rowNumber || '0', 10) || 0;
-            return numB - numA;
+            if (numB !== numA) return numB - numA;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
 
         return NextResponse.json({ projects });
