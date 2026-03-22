@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyRequestAuth } from '@/lib/auth';
-import fs from 'fs/promises';
-import path from 'path';
 
 export async function GET(
     request: Request,
@@ -46,9 +44,6 @@ export async function DELETE(
         await prisma.project.delete({
             where: { id },
         });
-
-        const pdfPath = path.join(process.cwd(), 'uploads', 'pdfs', `${id}.pdf`);
-        await fs.unlink(pdfPath).catch(() => {});
 
         return NextResponse.json({ success: true });
 
