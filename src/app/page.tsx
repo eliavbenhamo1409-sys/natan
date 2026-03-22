@@ -55,7 +55,7 @@ export default function DashboardPage() {
     if (cache.aiResults !== null) return;
     const hasProcessing = cache.projects.some(p => p.extractionStatus === 'processing' || p.extractionStatus === 'pending');
     if (!hasProcessing) return;
-    const interval = setInterval(() => cache.fetchProjects({ silent: true, force: true }), 2000);
+    const interval = setInterval(() => cache.fetchProjects({ silent: true, force: true }), 8000);
     return () => clearInterval(interval);
   }, [cache.projects, cache.aiResults]);
 

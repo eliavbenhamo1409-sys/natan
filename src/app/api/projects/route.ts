@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyRequestAuth } from '@/lib/auth';
 import { v4 as uuidv4 } from 'uuid';
@@ -72,8 +72,14 @@ export async function POST(request: Request) {
                         extractionStatus: 'pending',
                     },
                 });
-                const { pipeline } = await import('@/lib/extraction/pipeline');
-                pipeline.processProject(projectId, buffer).catch(console.error);
+                after(async () => {
+                    try {
+                        const { pipeline } = await import('@/lib/extraction/pipeline');
+                        await pipeline.processProject(projectId, buffer);
+                    } catch (e) {
+                        console.error('[after] pipeline error:', e);
+                    }
+                });
                 return NextResponse.json({ project });
             }
 

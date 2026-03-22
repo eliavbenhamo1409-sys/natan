@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
@@ -12,7 +12,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Project ID required' }, { status: 400 });
         }
 
-        // Verify authorized user context
         const cookieHeader = request.headers.get('cookie') || '';
         const match = cookieHeader.match(/factory_records_token=([^;]+)/);
         if (!match) {
@@ -31,12 +30,14 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        // Process asynchronously, do not await here to let response return immediately
-        // Next.js App Router API route will run this background promise.
-        // In serverless environments, this might require a different approach (e.g. Vercel Inngest/Queue).
-        // For local Node server, this fire-and-forget works fine.
-        const { pipeline } = await import('@/lib/extraction/pipeline');
-        pipeline.processProject(projectId).catch(console.error);
+        after(async () => {
+            try {
+                const { pipeline } = await import('@/lib/extraction/pipeline');
+                await pipeline.processProject(projectId);
+            } catch (e) {
+                console.error('[after] process pipeline error:', e);
+            }
+        });
 
         return NextResponse.json({ success: true, message: 'Processing started' });
 
