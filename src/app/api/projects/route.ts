@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyRequestAuth } from '@/lib/auth';
 import { v4 as uuidv4 } from 'uuid';
-import { pipeline } from '@/lib/extraction/pipeline';
-import { uploadPdf } from '@/lib/storage';
+
+export const maxDuration = 60;
 
 async function getMaxRowNumber(): Promise<number> {
     const rows = await prisma.project.findMany({
@@ -59,6 +59,7 @@ export async function POST(request: Request) {
                 const buffer = Buffer.from(bytes);
                 const projectId = uuidv4();
 
+                const { uploadPdf } = await import('@/lib/storage');
                 await uploadPdf(`${projectId}.pdf`, buffer);
 
                 const maxNumPdf = await getMaxRowNumber();
@@ -71,6 +72,7 @@ export async function POST(request: Request) {
                         extractionStatus: 'pending',
                     },
                 });
+                const { pipeline } = await import('@/lib/extraction/pipeline');
                 pipeline.processProject(projectId, buffer).catch(console.error);
                 return NextResponse.json({ project });
             }

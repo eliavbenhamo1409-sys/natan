@@ -1,11 +1,10 @@
-import sharp from 'sharp';
 import { extractProjectFieldsFromPdf, generateEmbedding, selectBestProductImage, getProductBoundingBox, generateCatalogDescription } from './gemini';
 import { extractAllImagesFromPdf } from './image-extractor';
 import { prisma } from '@/lib/db';
 import { uploadImage, downloadPdf } from '@/lib/storage';
 
 async function extractAndCropProductImage(pdfBuffer: Buffer, projectId: string): Promise<{ url: string; buffer: Buffer } | null> {
-
+    const sharp = (await import('sharp')).default;
     const allImages = await extractAllImagesFromPdf(pdfBuffer, 5);
     console.log(`[pipeline] Extracted ${allImages.length} images from PDF`);
 

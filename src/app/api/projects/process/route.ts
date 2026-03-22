@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { pipeline } from '@/lib/extraction/pipeline';
 import { verifyToken } from '@/lib/auth';
+
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
     try {
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
         // Next.js App Router API route will run this background promise.
         // In serverless environments, this might require a different approach (e.g. Vercel Inngest/Queue).
         // For local Node server, this fire-and-forget works fine.
+        const { pipeline } = await import('@/lib/extraction/pipeline');
         pipeline.processProject(projectId).catch(console.error);
 
         return NextResponse.json({ success: true, message: 'Processing started' });
