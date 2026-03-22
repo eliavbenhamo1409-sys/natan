@@ -8,8 +8,6 @@ import AdmZip from 'adm-zip';
 export const maxDuration = 120;
 export const dynamic = 'force-dynamic';
 import { mapExcelColumns, generateCatalogDescription, generateEmbedding } from '@/lib/extraction/gemini';
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
 
 /**
  * Extract images from XLSX with exact row mapping via the Rich Data chain:

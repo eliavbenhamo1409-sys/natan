@@ -1,10 +1,8 @@
-import path from 'path';
-import fs from 'fs/promises';
 import sharp from 'sharp';
 import { extractProjectFieldsFromPdf, generateEmbedding, selectBestProductImage, getProductBoundingBox, generateCatalogDescription } from './gemini';
 import { extractAllImagesFromPdf } from './image-extractor';
 import { prisma } from '@/lib/db';
-import { uploadImage } from '@/lib/storage';
+import { uploadImage, downloadPdf } from '@/lib/storage';
 
 async function extractAndCropProductImage(pdfBuffer: Buffer, projectId: string): Promise<{ url: string; buffer: Buffer } | null> {
 
@@ -67,7 +65,7 @@ async function extractAndCropProductImage(pdfBuffer: Buffer, projectId: string):
 }
 
 export const pipeline = {
-    async processProject(projectId: string) {
+    async processProject(projectId: string, pdfBuffer?: Buffer) {
         console.log(`[pipeline] Starting processing for project ${projectId}`);
 
         try {
@@ -76,8 +74,9 @@ export const pipeline = {
                 data: { extractionStatus: 'processing' },
             });
 
-            const pdfPath = path.join(process.cwd(), 'uploads', 'pdfs', `${projectId}.pdf`);
-            const pdfBuffer = await fs.readFile(pdfPath);
+            if (!pdfBuffer) {
+                pdfBuffer = await downloadPdf(`${projectId}.pdf`);
+            }
 
             const { structured, rawOutput } = await extractProjectFieldsFromPdf(pdfBuffer);
 

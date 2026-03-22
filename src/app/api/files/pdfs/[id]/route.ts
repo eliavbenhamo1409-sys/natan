@@ -1,6 +1,5 @@
-import fs from 'fs/promises';
-import path from 'path';
 import { NextResponse } from 'next/server';
+import { downloadPdf } from '@/lib/storage';
 
 export async function GET(
     request: Request,
@@ -8,15 +7,9 @@ export async function GET(
 ) {
     try {
         const { id } = await params;
-        const pdfPath = path.join(process.cwd(), 'uploads', 'pdfs', `${id}.pdf`);
+        const filename = id.endsWith('.pdf') ? id : `${id}.pdf`;
 
-        try {
-            await fs.access(pdfPath);
-        } catch {
-            return new NextResponse('PDF not found', { status: 404 });
-        }
-
-        const buffer = await fs.readFile(pdfPath);
+        const buffer = await downloadPdf(filename);
 
         return new NextResponse(buffer, {
             status: 200,
@@ -28,6 +21,6 @@ export async function GET(
         });
     } catch (error) {
         console.error('PDF route error:', error);
-        return new NextResponse('Internal Server Error', { status: 500 });
+        return new NextResponse('PDF not found', { status: 404 });
     }
 }

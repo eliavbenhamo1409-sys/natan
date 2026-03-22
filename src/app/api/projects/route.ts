@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyRequestAuth } from '@/lib/auth';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { pipeline } from '@/lib/extraction/pipeline';
+import { uploadPdf } from '@/lib/storage';
 
 async function getMaxRowNumber(): Promise<number> {
     const rows = await prisma.project.findMany({
@@ -59,10 +58,8 @@ export async function POST(request: Request) {
                 const bytes = await pdfFile.arrayBuffer();
                 const buffer = Buffer.from(bytes);
                 const projectId = uuidv4();
-                const filename = `${projectId}.pdf`;
-                const uploadDir = path.join(process.cwd(), 'uploads', 'pdfs');
-                await mkdir(uploadDir, { recursive: true });
-                await writeFile(path.join(uploadDir, filename), buffer);
+
+                await uploadPdf(`${projectId}.pdf`, buffer);
 
                 const maxNumPdf = await getMaxRowNumber();
                 const project = await prisma.project.create({
@@ -74,7 +71,7 @@ export async function POST(request: Request) {
                         extractionStatus: 'pending',
                     },
                 });
-                pipeline.processProject(projectId).catch(console.error);
+                pipeline.processProject(projectId, buffer).catch(console.error);
                 return NextResponse.json({ project });
             }
 
@@ -134,12 +131,7 @@ export async function DELETE(request: Request) {
             return tx.project.deleteMany({});
         });
 
-        // Clean up uploaded files
-        const { rm } = await import('fs/promises');
-        const imgDir = path.join(process.cwd(), 'uploads', 'images');
-        const pdfDir = path.join(process.cwd(), 'uploads', 'pdfs');
-        await rm(imgDir, { recursive: true, force: true }).catch(() => {});
-        await rm(pdfDir, { recursive: true, force: true }).catch(() => {});
+        // Local file cleanup is no longer needed - files are in Supabase Storage
 
         console.log(`[delete-all] Deleted ${result.count} projects`);
         return NextResponse.json({ deleted: result.count });
