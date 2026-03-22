@@ -66,6 +66,7 @@ async function extractAndCropProductImage(pdfBuffer: Buffer, projectId: string):
 export const pipeline = {
     async processProject(projectId: string, pdfBuffer?: Buffer) {
         console.log(`[pipeline] Starting processing for project ${projectId}`);
+        const t0 = Date.now();
 
         try {
             await prisma.project.update({
@@ -77,25 +78,26 @@ export const pipeline = {
                 pdfBuffer = await downloadPdf(`${projectId}.pdf`);
             }
 
-            const { structured, rawOutput } = await extractProjectFieldsFromPdf(pdfBuffer);
+            // Run field extraction and image extraction in PARALLEL
+            const [fieldsResult, imageResult] = await Promise.all([
+                extractProjectFieldsFromPdf(pdfBuffer),
+                extractAndCropProductImage(pdfBuffer, projectId),
+            ]);
+            console.log(`[pipeline] Parallel extraction done in ${Date.now() - t0}ms`);
 
-            const imageResult = await extractAndCropProductImage(pdfBuffer, projectId);
+            const { structured, rawOutput } = fieldsResult;
             const productImageUrl = imageResult?.url || null;
             const productImageBuffer = imageResult?.buffer;
 
-            console.log(`[pipeline] Generating AI catalog description...`);
+            // Catalog description (needs structured + image)
             const catalogDescription = await generateCatalogDescription(structured, productImageBuffer);
-            console.log(`[pipeline] Catalog: ${catalogDescription.substring(0, 100)}...`);
 
+            // Embedding
             const embedText = [
-                structured.sku,
-                structured.customerName,
-                structured.workOrderNumber,
-                structured.productDescription,
-                structured.voltage,
+                structured.sku, structured.customerName, structured.workOrderNumber,
+                structured.productDescription, structured.voltage,
                 structured.powerKw ? `${structured.powerKw}kW` : '',
-                structured.configuration,
-                catalogDescription,
+                structured.configuration, catalogDescription,
             ].filter(Boolean).join(' ');
 
             let embeddingValues: number[] = [];
@@ -145,7 +147,7 @@ export const pipeline = {
                 }
             });
 
-            console.log(`[pipeline] Processing complete for project ${projectId}`);
+            console.log(`[pipeline] Processing complete for ${projectId} in ${Date.now() - t0}ms`);
 
         } catch (error) {
             console.error(`[pipeline] Failed for project ${projectId}:`, error);
