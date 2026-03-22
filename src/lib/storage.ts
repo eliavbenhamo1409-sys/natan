@@ -11,7 +11,7 @@ async function uploadToBucket(bucket: string, filePath: string, buffer: Buffer, 
             'Content-Type': contentType,
             'x-upsert': 'true',
         },
-        body: buffer,
+        body: new Uint8Array(buffer),
     });
     if (!res.ok) {
         const err = await res.text();
