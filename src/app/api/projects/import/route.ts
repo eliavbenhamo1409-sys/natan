@@ -252,8 +252,11 @@ export async function POST(request: Request) {
         const imageDir = path.join(process.cwd(), 'uploads', 'images');
         await mkdir(imageDir, { recursive: true });
 
-        const maxRow = await prisma.project.aggregate({ _max: { rowNumber: true } });
-        let currentMax = parseInt(maxRow._max.rowNumber || '0', 10) || 0;
+        const allRowNums = await prisma.project.findMany({
+            select: { rowNumber: true },
+            where: { rowNumber: { not: null } },
+        });
+        let currentMax = Math.max(0, ...allRowNums.map(r => parseInt(r.rowNumber || '0', 10) || 0));
 
         let imported = 0;
         let skipped = 0;

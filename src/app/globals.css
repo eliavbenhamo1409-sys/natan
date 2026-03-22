@@ -337,3 +337,26 @@ tr.row-processing {
   50% { stroke-dashoffset: 0; }
   100% { stroke-dashoffset: 107; }
 }
+
+/* ───── Smooth native scroll for table ───── */
+.table-scroll-area {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: auto;
+  will-change: scroll-position;
+}
+
+.table-scroll-area::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.table-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+.table-scroll-area::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 3px;
+}
+.table-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+}

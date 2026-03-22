@@ -162,8 +162,7 @@ export async function GET(request: Request) {
         merged.sort((a, b) => {
             const numA = parseInt(a.rowNumber || '0', 10) || 0;
             const numB = parseInt(b.rowNumber || '0', 10) || 0;
-            if (numB !== numA) return numB - numA;
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            return numB - numA;
         });
 
         console.log(`[search] Total merged results: ${merged.length}`);

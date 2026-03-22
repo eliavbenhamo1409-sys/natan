@@ -122,18 +122,31 @@ export default function DashboardPage() {
     sku: '', customerName: '', workOrderNumber: '', productDescription: '',
     plannerName: '', drawingDate: '', voltage: '', quantity: '',
   });
+  const [manualImage, setManualImage] = useState<File | null>(null);
+  const [manualImagePreview, setManualImagePreview] = useState<string | null>(null);
   const [isSavingManual, setIsSavingManual] = useState(false);
+  const manualImageRef = useRef<HTMLInputElement>(null);
+
+  const handleManualImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setManualImage(file);
+    const url = URL.createObjectURL(file);
+    setManualImagePreview(url);
+  };
 
   const handleManualSave = async () => {
     setIsSavingManual(true);
     try {
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(manualForm),
-      });
+      const fd = new FormData();
+      fd.append('json', JSON.stringify(manualForm));
+      if (manualImage) fd.append('image', manualImage);
+      const res = await fetch('/api/projects', { method: 'POST', body: fd });
       if (!res.ok) throw new Error('Failed to create project');
       setManualForm({ sku: '', customerName: '', workOrderNumber: '', productDescription: '', plannerName: '', drawingDate: '', voltage: '', quantity: '' });
+      setManualImage(null);
+      if (manualImagePreview) URL.revokeObjectURL(manualImagePreview);
+      setManualImagePreview(null);
       setIsManualModalOpen(false);
       handleClearAi();
       cache.invalidate();
@@ -383,6 +396,31 @@ export default function DashboardPage() {
               placeholder="תיאור המוצר"
               className="h-9 px-3 rounded-lg border border-border-strong bg-bg-secondary text-text-primary text-[13px] focus:outline-none focus:ring-2 focus:ring-border-base focus:border-text-secondary transition-all"
             />
+          </div>
+          <div className="col-span-2 flex flex-col gap-1">
+            <label className="text-[11px] font-medium text-text-secondary">תמונת מוצר</label>
+            <input ref={manualImageRef} type="file" accept="image/*" onChange={handleManualImageChange} className="hidden" />
+            {manualImagePreview ? (
+              <div className="relative w-24 h-24 rounded-lg border border-border-base overflow-hidden bg-white group">
+                <img src={manualImagePreview} alt="" className="w-full h-full object-contain" />
+                <button
+                  type="button"
+                  onClick={() => { setManualImage(null); URL.revokeObjectURL(manualImagePreview); setManualImagePreview(null); if (manualImageRef.current) manualImageRef.current.value = ''; }}
+                  className="absolute top-1 left-1 w-5 h-5 rounded-full bg-neutral-900/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => manualImageRef.current?.click()}
+                className="w-24 h-24 rounded-lg border-2 border-dashed border-border-strong flex flex-col items-center justify-center gap-1 text-text-tertiary hover:border-text-secondary hover:text-text-secondary transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span className="text-[10px] font-medium">הוסף תמונה</span>
+              </button>
+            )}
           </div>
         </div>
       </Modal>
