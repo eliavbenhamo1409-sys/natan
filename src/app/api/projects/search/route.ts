@@ -109,9 +109,18 @@ export async function GET(request: Request) {
             { plannerName: { contains: term, mode: 'insensitive' as const } },
         ]);
 
+        const listSelect = {
+            id: true, createdAt: true, rowNumber: true, sku: true,
+            customerName: true, workOrderNumber: true, productDescription: true,
+            plannerName: true, drawingDate: true, voltage: true, powerKw: true,
+            quantity: true, configuration: true, productImageUrl: true,
+            extractionStatus: true, sourcePdfFilename: true,
+        };
+
         const textResults = await prisma.project.findMany({
             where: { OR: textConditions },
             take: 50,
+            select: listSelect,
         });
 
         console.log(`[search] Text search found ${textResults.length} results`);
@@ -120,7 +129,7 @@ export async function GET(request: Request) {
         let embeddingResults: typeof textResults = [];
         if (queryEmbedding.length > 0) {
             const allEmbeddings = await prisma.projectEmbedding.findMany({
-                include: { project: true },
+                include: { project: { select: listSelect } },
             });
 
             if (allEmbeddings.length > 0) {

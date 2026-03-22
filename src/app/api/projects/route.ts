@@ -166,6 +166,24 @@ export async function GET(request: Request) {
             where: whereClause,
             orderBy: { createdAt: 'desc' },
             take: 1000,
+            select: {
+                id: true,
+                createdAt: true,
+                rowNumber: true,
+                sku: true,
+                customerName: true,
+                workOrderNumber: true,
+                productDescription: true,
+                plannerName: true,
+                drawingDate: true,
+                voltage: true,
+                powerKw: true,
+                quantity: true,
+                configuration: true,
+                productImageUrl: true,
+                extractionStatus: true,
+                sourcePdfFilename: true,
+            },
         });
 
         projects.sort((a, b) => {
