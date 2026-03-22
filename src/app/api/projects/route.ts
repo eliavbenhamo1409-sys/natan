@@ -89,10 +89,8 @@ export async function POST(request: Request) {
                     const imgBytes = Buffer.from(await imageFile.arrayBuffer());
                     const sharp = (await import('sharp')).default;
                     const pngBuf = await sharp(imgBytes).png().toBuffer();
-                    const imageDir = path.join(process.cwd(), 'uploads', 'images');
-                    await mkdir(imageDir, { recursive: true });
-                    await writeFile(path.join(imageDir, `${projectId}.png`), pngBuf);
-                    productImageUrl = `/api/files/images/${projectId}`;
+                    const { uploadImage } = await import('@/lib/storage');
+                    productImageUrl = await uploadImage(`${projectId}.png`, pngBuf);
                 }
 
                 const project = await prisma.project.create({

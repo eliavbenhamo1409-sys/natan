@@ -249,8 +249,6 @@ export async function POST(request: Request) {
 
         const rawBuffer = Buffer.from(bytes);
         const excelImages = extractExcelImages(rawBuffer);
-        const imageDir = path.join(process.cwd(), 'uploads', 'images');
-        await mkdir(imageDir, { recursive: true });
 
         const allRowNums = await prisma.project.findMany({
             select: { rowNumber: true },
@@ -304,9 +302,8 @@ export async function POST(request: Request) {
                 try {
                     const sharp = (await import('sharp')).default;
                     const pngBuf = await sharp(imgBuf).png().toBuffer();
-                    const imgPath = path.join(imageDir, `${projectId}.png`);
-                    await writeFile(imgPath, pngBuf);
-                    productImageUrl = `/api/files/images/${projectId}`;
+                    const { uploadImage } = await import('@/lib/storage');
+                    productImageUrl = await uploadImage(`${projectId}.png`, pngBuf);
                 } catch {}
             }
 

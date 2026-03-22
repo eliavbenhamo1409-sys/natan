@@ -48,9 +48,7 @@ export async function DELETE(
         });
 
         const pdfPath = path.join(process.cwd(), 'uploads', 'pdfs', `${id}.pdf`);
-        const imgPath = path.join(process.cwd(), 'uploads', 'images', `${id}.png`);
         await fs.unlink(pdfPath).catch(() => {});
-        await fs.unlink(imgPath).catch(() => {});
 
         return NextResponse.json({ success: true });
 
@@ -79,16 +77,14 @@ export async function PATCH(
             const imageFile = formData.get('image') as File | null;
 
             if (imageFile) {
-                const imageDir = path.join(process.cwd(), 'uploads', 'images');
-                await fs.mkdir(imageDir, { recursive: true });
-                const imgPath = path.join(imageDir, `${id}.png`);
                 const sharp = (await import('sharp')).default;
+                const { uploadImage } = await import('@/lib/storage');
                 const buf = Buffer.from(await imageFile.arrayBuffer());
-                await sharp(buf).png().toFile(imgPath);
-                const cacheBuster = Date.now();
+                const pngBuf = await sharp(buf).png().toBuffer();
+                const imageUrl = await uploadImage(`${id}.png`, pngBuf);
                 await prisma.project.update({
                     where: { id },
-                    data: { productImageUrl: `/api/files/images/${id}?v=${cacheBuster}` },
+                    data: { productImageUrl: imageUrl },
                 });
             }
 

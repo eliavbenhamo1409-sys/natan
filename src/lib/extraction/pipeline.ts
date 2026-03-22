@@ -4,11 +4,9 @@ import sharp from 'sharp';
 import { extractProjectFieldsFromPdf, generateEmbedding, selectBestProductImage, getProductBoundingBox, generateCatalogDescription } from './gemini';
 import { extractAllImagesFromPdf } from './image-extractor';
 import { prisma } from '@/lib/db';
+import { uploadImage } from '@/lib/storage';
 
-async function extractAndCropProductImage(pdfBuffer: Buffer, projectId: string): Promise<string | null> {
-    const imageDir = path.join(process.cwd(), 'uploads', 'images');
-    await fs.mkdir(imageDir, { recursive: true });
-    const outputPath = path.join(imageDir, `${projectId}.png`);
+async function extractAndCropProductImage(pdfBuffer: Buffer, projectId: string): Promise<{ url: string; buffer: Buffer } | null> {
 
     const allImages = await extractAllImagesFromPdf(pdfBuffer, 5);
     console.log(`[pipeline] Extracted ${allImages.length} images from PDF`);
@@ -54,16 +52,18 @@ async function extractAndCropProductImage(pdfBuffer: Buffer, projectId: string):
 
         console.log(`[pipeline] Cropping product: [${left},${top} ${width}x${height}] from ${imgW}x${imgH}`);
 
-        await sharp(chosenBuffer)
+        const pngBuf = await sharp(chosenBuffer)
             .extract({ left, top, width, height })
             .png()
-            .toFile(outputPath);
+            .toBuffer();
+        const url = await uploadImage(`${projectId}.png`, pngBuf);
+        return { url, buffer: pngBuf };
     } else {
         console.log('[pipeline] No bbox, saving selected image as-is');
-        await sharp(chosenBuffer).png().toFile(outputPath);
+        const pngBuf = await sharp(chosenBuffer).png().toBuffer();
+        const url = await uploadImage(`${projectId}.png`, pngBuf);
+        return { url, buffer: pngBuf };
     }
-
-    return `/api/files/images/${projectId}`;
 }
 
 export const pipeline = {
@@ -81,13 +81,9 @@ export const pipeline = {
 
             const { structured, rawOutput } = await extractProjectFieldsFromPdf(pdfBuffer);
 
-            const productImageUrl = await extractAndCropProductImage(pdfBuffer, projectId);
-
-            let productImageBuffer: Buffer | undefined;
-            if (productImageUrl) {
-                const imgPath = path.join(process.cwd(), 'uploads', 'images', `${projectId}.png`);
-                try { productImageBuffer = await fs.readFile(imgPath); } catch {}
-            }
+            const imageResult = await extractAndCropProductImage(pdfBuffer, projectId);
+            const productImageUrl = imageResult?.url || null;
+            const productImageBuffer = imageResult?.buffer;
 
             console.log(`[pipeline] Generating AI catalog description...`);
             const catalogDescription = await generateCatalogDescription(structured, productImageBuffer);
