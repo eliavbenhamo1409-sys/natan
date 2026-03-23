@@ -283,7 +283,9 @@ export async function GET(request: Request) {
         // SKU prefix search
         if (skuPatterns.length > 0) {
             for (const pat of skuPatterns) {
-                textConditions.push({ sku: { startsWith: pat, mode: 'insensitive' as const } });
+                textConditions.push({ sku: { startsWith: pat } });
+                textConditions.push({ sku: { startsWith: pat.toUpperCase() } });
+                textConditions.push({ sku: { startsWith: pat.toLowerCase() } });
             }
         }
 
