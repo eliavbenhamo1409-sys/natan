@@ -103,6 +103,36 @@ export default function DashboardPage() {
     handleAiSearch(suggestion);
   };
 
+  const handleExportExcel = useCallback(() => {
+    import('xlsx').then((XLSX) => {
+      const rows = filteredData.map((p: any, i: number) => ({
+        '#': p.rowNumber || i + 1,
+        'מק"ט / SKU': p.sku || '',
+        'לקוח': p.customerName || '',
+        'הזמנה': p.workOrderNumber || '',
+        'תיאור': p.productDescription || '',
+        'מתכנן': p.plannerName || '',
+        'תאריך': p.drawingDate || '',
+        'מתח': p.voltage || '',
+        'הספק (kW)': p.powerKw || '',
+        'כמות': p.quantity || '',
+        'תצורה': p.configuration || '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+
+      const colWidths = [
+        { wch: 6 }, { wch: 18 }, { wch: 18 }, { wch: 14 },
+        { wch: 32 }, { wch: 14 }, { wch: 12 }, { wch: 10 },
+        { wch: 10 }, { wch: 8 }, { wch: 16 },
+      ];
+      ws['!cols'] = colWidths;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Projects');
+      XLSX.writeFile(wb, `factory-records-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    });
+  }, [filteredData]);
+
   const handleDelete = async (e: React.MouseEvent, projectId: string) => {
     e.stopPropagation();
     if (!confirm('למחוק את הרשומה?')) return;
@@ -280,6 +310,18 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={handleExportExcel}
+              className="h-9 px-3.5 rounded-lg text-[12.5px] font-semibold flex items-center gap-1.5 transition-all duration-150 border border-[#21a366]/30 bg-[#21a366]/10 text-[#1a7f4f] hover:bg-[#21a366] hover:text-white hover:border-[#21a366] hover:shadow-md"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="12" y1="18" x2="12" y2="12" />
+                <polyline points="9 15 12 18 15 15" />
+              </svg>
+              ייצוא Excel
+            </button>
             <Button variant="ghost" onClick={() => setIsManualModalOpen(true)}>
               <svg className="w-4 h-4 ml-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
