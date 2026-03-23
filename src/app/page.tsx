@@ -21,6 +21,7 @@ export default function DashboardPage() {
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   // On mount: fetch if stale, restore scroll position
   useEffect(() => {
@@ -103,34 +104,131 @@ export default function DashboardPage() {
     handleAiSearch(suggestion);
   };
 
-  const handleExportExcel = useCallback(() => {
-    import('xlsx').then((XLSX) => {
-      const rows = filteredData.map((p: any, i: number) => ({
-        '#': p.rowNumber || i + 1,
-        'מק"ט / SKU': p.sku || '',
-        'לקוח': p.customerName || '',
-        'הזמנה': p.workOrderNumber || '',
-        'תיאור': p.productDescription || '',
-        'מתכנן': p.plannerName || '',
-        'תאריך': p.drawingDate || '',
-        'מתח': p.voltage || '',
-        'הספק (kW)': p.powerKw || '',
-        'כמות': p.quantity || '',
-        'תצורה': p.configuration || '',
-      }));
-      const ws = XLSX.utils.json_to_sheet(rows);
+  const handleExportExcel = useCallback(async () => {
+    if (filteredData.length === 0) {
+      alert('אין נתונים לייצוא');
+      return;
+    }
+    setIsExportingExcel(true);
+    try {
+      const ExcelJS = (await import('exceljs')).default;
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Projects', {
+        views: [{ rightToLeft: true }],
+      });
 
-      const colWidths = [
-        { wch: 6 }, { wch: 18 }, { wch: 18 }, { wch: 14 },
-        { wch: 32 }, { wch: 14 }, { wch: 12 }, { wch: 10 },
-        { wch: 10 }, { wch: 8 }, { wch: 16 },
+      const headers = [
+        '#',
+        'תמונה',
+        'מק"ט / SKU',
+        'לקוח',
+        'הזמנה',
+        'תיאור',
+        'מתכנן',
+        'תאריך',
+        'מתח',
+        'הספק (kW)',
+        'כמות',
+        'תצורה',
       ];
-      ws['!cols'] = colWidths;
+      ws.addRow(headers);
+      ws.getRow(1).font = { bold: true };
+      ws.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
 
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Projects');
-      XLSX.writeFile(wb, `factory-records-${new Date().toISOString().slice(0, 10)}.xlsx`);
-    });
+      ws.columns = [
+        { width: 6 },
+        { width: 12 },
+        { width: 18 },
+        { width: 18 },
+        { width: 14 },
+        { width: 36 },
+        { width: 14 },
+        { width: 12 },
+        { width: 10 },
+        { width: 10 },
+        { width: 8 },
+        { width: 16 },
+      ];
+
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const resolveImgUrl = (u: string | null | undefined) => {
+        if (!u) return null;
+        if (u.startsWith('http://') || u.startsWith('https://')) return u;
+        if (u.startsWith('/')) return `${origin}${u}`;
+        return u;
+      };
+
+      const extFromCt = (ct: string | null): 'png' | 'jpeg' | 'gif' => {
+        if (!ct) return 'png';
+        if (ct.includes('jpeg') || ct.includes('jpg')) return 'jpeg';
+        if (ct.includes('gif')) return 'gif';
+        return 'png';
+      };
+
+      filteredData.forEach((p: any, i: number) => {
+        const row = ws.addRow([
+          p.rowNumber || i + 1,
+          '',
+          p.sku || '',
+          p.customerName || '',
+          p.workOrderNumber || '',
+          p.productDescription || '',
+          p.plannerName || '',
+          p.drawingDate || '',
+          p.voltage ?? '',
+          p.powerKw ?? '',
+          p.quantity ?? '',
+          p.configuration || '',
+        ]);
+        if (row.number > 1) row.height = 64;
+      });
+
+      const CONCURRENCY = 8;
+      let nextIdx = 0;
+      const runWorker = async () => {
+        while (nextIdx < filteredData.length) {
+          const i = nextIdx++;
+          const p = filteredData[i] as any;
+          const url = resolveImgUrl(p.productImageUrl);
+          if (!url) continue;
+          try {
+            const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
+            if (!res.ok) continue;
+            const ab = await res.arrayBuffer();
+            if (ab.byteLength < 80) continue;
+            const ext = extFromCt(res.headers.get('content-type'));
+            const imageId = wb.addImage({
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              buffer: Buffer.from(ab) as any,
+              extension: ext,
+            });
+            const row0 = 1 + i;
+            ws.addImage(imageId, {
+              tl: { col: 1.1, row: row0 + 0.06 },
+              ext: { width: 52, height: 52 },
+            });
+          } catch {
+            /* CORS / network */
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, filteredData.length) }, () => runWorker()));
+
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `factory-records-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      console.error(e);
+      alert('ייצוא נכשל');
+    } finally {
+      setIsExportingExcel(false);
+    }
   }, [filteredData]);
 
   const handleDelete = async (e: React.MouseEvent, projectId: string) => {
@@ -311,16 +409,25 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
-              onClick={handleExportExcel}
-              className="h-9 px-3.5 rounded-lg text-[12.5px] font-semibold flex items-center gap-1.5 transition-all duration-150 border border-[#21a366]/30 bg-[#21a366]/10 text-[#1a7f4f] hover:bg-[#21a366] hover:text-white hover:border-[#21a366] hover:shadow-md"
+              type="button"
+              disabled={isExportingExcel}
+              onClick={() => void handleExportExcel()}
+              className="h-9 px-3.5 rounded-lg text-[12.5px] font-semibold flex items-center gap-1.5 transition-all duration-150 border border-[#21a366]/30 bg-[#21a366]/10 text-[#1a7f4f] hover:bg-[#21a366] hover:text-white hover:border-[#21a366] hover:shadow-md disabled:opacity-50 disabled:pointer-events-none"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="12" y1="18" x2="12" y2="12" />
-                <polyline points="9 15 12 18 15 15" />
-              </svg>
-              ייצוא Excel
+              {isExportingExcel ? (
+                <span className="relative flex h-3.5 w-3.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#21a366] opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-[#21a366]" />
+                </span>
+              ) : (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <polyline points="9 15 12 18 15 15" />
+                </svg>
+              )}
+              {isExportingExcel ? 'מייצא…' : 'ייצוא Excel'}
             </button>
             <Button variant="ghost" onClick={() => setIsManualModalOpen(true)}>
               <svg className="w-4 h-4 ml-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
