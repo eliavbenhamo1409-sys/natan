@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { verifyRequestAuth } from '@/lib/auth';
 import { generateEmbedding, generateSearchSuggestions } from '@/lib/extraction/gemini';
@@ -270,7 +271,7 @@ export async function GET(request: Request) {
         console.log(`[search] Intent analysis done in ${Date.now() - t0}ms, ${expandedTerms.length} terms, ${skuPatterns.length} SKU patterns`);
 
         // Step 2: Text search - all expanded terms across key fields
-        const textConditions = expandedTerms.flatMap(term => [
+        const textConditions: Prisma.ProjectWhereInput[] = expandedTerms.flatMap(term => [
             { sku: { contains: term, mode: 'insensitive' as const } },
             { customerName: { contains: term, mode: 'insensitive' as const } },
             { productDescription: { contains: term, mode: 'insensitive' as const } },
